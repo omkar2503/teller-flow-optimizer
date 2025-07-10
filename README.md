@@ -16,6 +16,21 @@ At the end of each time unit, the program prints out a snapshot of the queues,
 customers, and tellers.
 The program ends with printing out statistics of the simulation.
 
+## Scheduling Algorithms (New!)
+
+When you run the program, you can now choose which teller scheduling algorithm to use:
+
+1. **Greedy (Least Finish Time):**
+   - Assigns each waiting customer to the next available teller (the one who becomes free the earliest).
+   - This is the original/default logic.
+2. **Round Robin:**
+   - Assigns customers to tellers in a circular order (teller 1, 2, ..., N, then back to 1, etc.).
+   - Each teller only takes a new customer if they are free.
+3. **Least Work Left:**
+   - Assigns each new customer to the teller with the least total finish time so far (the teller who will be free the soonest, considering all current assignments).
+
+You will be prompted to select the algorithm after entering the simulation parameters.
+
 ## Assumptions and Requirements
 
 ### Assumptions
