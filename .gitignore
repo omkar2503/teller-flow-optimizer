@@ -3,3 +3,6 @@
 
 # Ignore Groq API key file
  groq_api_key.txt
+
+# Ignore compiled output directory
+out/
