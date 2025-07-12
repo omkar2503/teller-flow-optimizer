@@ -1,2 +1,5 @@
 *.class
 .DS_Store
+
+# Ignore Groq API key file
+ groq_api_key.txt

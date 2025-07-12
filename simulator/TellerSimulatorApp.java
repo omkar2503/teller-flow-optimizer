@@ -9,6 +9,9 @@ import javafx.scene.chart.*;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
+import javafx.scene.text.Text;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 
 public class TellerSimulatorApp extends Application {
 
@@ -17,9 +20,18 @@ public class TellerSimulatorApp extends Application {
     private TextArea logArea;
     private BarChart<String, Number> utilizationChart;
     private Button startBtn;
+    
+    // AI Recommendation UI components
+    private TextArea scenarioTextArea;
+    private Button askAIButton;
+    private Text aiRecommendationText;
+    private GroqAIRecommender aiRecommender;
 
     @Override
     public void start(Stage primaryStage) {
+        // Initialize AI recommender
+        aiRecommender = new GroqAIRecommender();
+        
         // Algorithm selection
         algoCombo = new ComboBox<>();
         algoCombo.getItems().addAll("Greedy (Least Finish Time)", "Round Robin", "Least Work Left");
@@ -31,6 +43,19 @@ public class TellerSimulatorApp extends Application {
         chanceField = new TextField("50");
         tellersField = new TextField("3");
         queueLimitField = new TextField("10");
+
+        // AI Recommendation section
+        scenarioTextArea = new TextArea();
+        scenarioTextArea.setPromptText("Describe your banking scenario here...\n\nExample:\n\"We have a busy downtown branch with 5 tellers. Customers arrive frequently with varying transaction times. We want to minimize wait times while ensuring fair teller utilization.\"");
+        scenarioTextArea.setPrefRowCount(6);
+        scenarioTextArea.setWrapText(true);
+        
+        askAIButton = new Button("Ask AI to Choose Algorithm");
+        askAIButton.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white; -fx-font-weight: bold;");
+        
+        aiRecommendationText = new Text("AI (Groq) will recommend the best algorithm for your scenario.");
+        aiRecommendationText.setFont(Font.font("Arial", FontWeight.NORMAL, 12));
+        aiRecommendationText.setWrappingWidth(600);
 
         // Labels and layout
         GridPane inputGrid = new GridPane();
@@ -53,6 +78,22 @@ public class TellerSimulatorApp extends Application {
         startBtn = new Button("Start Simulation");
         inputGrid.add(startBtn, 1, 6);
 
+        // AI Recommendation section
+        VBox aiSection = new VBox(10);
+        aiSection.setPadding(new Insets(10));
+        aiSection.setStyle("-fx-border-color: #2196F3; -fx-border-width: 2; -fx-border-radius: 5; -fx-background-color: #E3F2FD;");
+        
+        Text aiTitle = new Text("🤖 AI Algorithm Recommender (Groq)");
+        aiTitle.setFont(Font.font("Arial", FontWeight.BOLD, 16));
+        
+        aiSection.getChildren().addAll(
+            aiTitle,
+            new Label("Describe your banking scenario:"),
+            scenarioTextArea,
+            askAIButton,
+            aiRecommendationText
+        );
+
         // Log area
         logArea = new TextArea();
         logArea.setEditable(false);
@@ -66,15 +107,90 @@ public class TellerSimulatorApp extends Application {
         utilizationChart = new BarChart<>(xAxis, yAxis);
         utilizationChart.setTitle("Teller Utilization");
 
-        VBox root = new VBox(10, inputGrid, new Label("Simulation Log:"), logArea, utilizationChart);
+        VBox root = new VBox(10, inputGrid, aiSection, new Label("Simulation Log:"), logArea, utilizationChart);
         root.setPadding(new Insets(10));
 
         startBtn.setOnAction(e -> startSimulation());
+        askAIButton.setOnAction(e -> askAIForRecommendation());
 
-        Scene scene = new Scene(root, 700, 700);
-        primaryStage.setTitle("Teller Simulation");
+        Scene scene = new Scene(root, 800, 900);
+        primaryStage.setTitle("Teller Simulation with AI Recommender");
         primaryStage.setScene(scene);
         primaryStage.show();
+    }
+    
+    /**
+     * Handles AI recommendation request.
+     */
+    private void askAIForRecommendation() {
+        String scenario = scenarioTextArea.getText().trim();
+        if (scenario.isEmpty()) {
+            Alert alert = new Alert(Alert.AlertType.WARNING, 
+                "Please describe your banking scenario before asking for AI recommendation.", 
+                ButtonType.OK);
+            alert.showAndWait();
+            return;
+        }
+        
+        // Disable button and show loading state
+        askAIButton.setDisable(true);
+        askAIButton.setText("Fetching AI suggestion...");
+        aiRecommendationText.setText("🤔 AI (Groq) is analyzing your scenario...");
+        
+        // Make AI recommendation request
+        aiRecommender.recommendAlgorithm(scenario)
+            .thenAcceptAsync(recommendation -> {
+                Platform.runLater(() -> {
+                    if (recommendation.isSuccess()) {
+                        String displayName = GroqAIRecommender.mapAlgorithmToDisplayName(recommendation.getAlgorithm());
+                        algoCombo.setValue(displayName);
+                        
+                        String recommendationText = String.format(
+                            "✅ AI (Groq) Recommendation: %s\n\n💡 Explanation: %s\n\n🚀 Algorithm automatically selected and ready to run!",
+                            displayName, recommendation.getExplanation()
+                        );
+                        aiRecommendationText.setText(recommendationText);
+                        
+                        // Show success dialog
+                        Alert alert = new Alert(Alert.AlertType.INFORMATION,
+                            "AI (Groq) has recommended '" + displayName + "' for your scenario.\n\n" +
+                            "The algorithm has been automatically selected. You can now run the simulation!",
+                            ButtonType.OK);
+                        alert.setTitle("AI Recommendation Complete");
+                        alert.showAndWait();
+                        
+                    } else {
+                        aiRecommendationText.setText("ERROR: Failed to get AI recommendation. Using default algorithm.");
+                        
+                        Alert alert = new Alert(Alert.AlertType.ERROR,
+                            "Failed to get AI recommendation. Please check your internet connection and API key.\n\n" +
+                            "Using default algorithm (Greedy).",
+                            ButtonType.OK);
+                        alert.setTitle("AI Recommendation Failed");
+                        alert.showAndWait();
+                    }
+                    
+                    // Re-enable button
+                    askAIButton.setDisable(false);
+                    askAIButton.setText("Ask AI to Choose Algorithm");
+                });
+            })
+            .exceptionally(throwable -> {
+                Platform.runLater(() -> {
+                    aiRecommendationText.setText("ERROR: " + throwable.getMessage());
+                    
+                    Alert alert = new Alert(Alert.AlertType.ERROR,
+                        "Error getting AI recommendation: " + throwable.getMessage() + "\n\n" +
+                        "Please check your internet connection and API key configuration.",
+                        ButtonType.OK);
+                    alert.setTitle("AI Recommendation Error");
+                    alert.showAndWait();
+                    
+                    askAIButton.setDisable(false);
+                    askAIButton.setText("Ask AI to Choose Algorithm");
+                });
+                return null;
+            });
     }
 
     private void startSimulation() {

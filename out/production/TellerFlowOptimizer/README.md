@@ -16,6 +16,73 @@ At the end of each time unit, the program prints out a snapshot of the queues,
 customers, and tellers.
 The program ends with printing out statistics of the simulation.
 
+## JavaFX Graphical User Interface with AI Recommender (NEW!)
+
+You can now run the simulation with a modern JavaFX GUI that includes an AI-powered algorithm recommender:
+- **AI Algorithm Recommender:** Describe your banking scenario and get AI-powered algorithm suggestions
+- **Dropdown** to select scheduling algorithm (Greedy, Round Robin, Least Work Left)
+- **Input fields** for all simulation parameters
+- **Start Simulation** button
+- **Real-time log** of simulation steps
+- **BarChart** showing teller utilization after simulation
+- **Background threading** for a responsive UI (no freezing during simulation)
+- **Input validation and error dialogs** for user-friendly experience
+
+## Groq AI Key Setup
+
+You can provide your Groq API key in one of two ways:
+
+1. **Environment Variable (Recommended for production):**
+   - Set `GROQ_API_KEY` in your environment
+2. **Local File (Easy for development):**
+   - Create a file named `groq_api_key.txt` in the project root (or `simulator/` directory) and paste your API key as the first line.
+   - This file is ignored by git and is safe for local use.
+
+If both are present, the environment variable takes precedence.
+
+### How to Get a Groq API Key
+1. Go to [https://console.groq.com/](https://console.groq.com/)
+2. Sign up (Google, GitHub, or email)
+3. Verify your email
+4. Log in, go to **API Keys**, and create a new key
+5. Copy your key and use as above
+
+---
+
+## AI-Powered Algorithm Recommendation (Groq)
+
+The application now includes an AI recommender that uses Groq's Llama 3 model to suggest the best scheduling algorithm for your specific banking scenario:
+
+1. **Describe Your Scenario:** Enter details about your bank branch, customer patterns, and goals
+2. **Ask AI:** Click "Ask AI to Choose Algorithm" to get a recommendation
+3. **Automatic Selection:** The recommended algorithm is automatically selected
+4. **Run Simulation:** Start the simulation with the AI-recommended algorithm
+
+---
+
+### How to Run the JavaFX UI
+
+1. **Compile:**
+   ```sh
+   javac --module-path /path/to/javafx-sdk-XX/lib --add-modules javafx.controls,javafx.fxml simulator/*.java
+   ```
+2. **Run:**
+   ```sh
+   java --module-path /path/to/javafx-sdk-XX/lib --add-modules javafx.controls,javafx.fxml simulator.TellerSimulatorApp
+   ```
+   *(Replace `/path/to/javafx-sdk-XX/lib` with your actual JavaFX SDK path)*
+
+3. **Use the UI:**
+   - Enter your simulation parameters
+   - Select the algorithm
+   - Click **Start Simulation**
+   - View the log and utilization chart
+
+### Features
+- **Responsive UI:** Simulation runs in the background
+- **Error Handling:** Invalid input shows a dialog, not a crash
+- **Visualization:** See teller utilization and simulation log instantly
+
 ## Scheduling Algorithms
 
 When you run the program, you can choose which teller scheduling algorithm to use:
@@ -50,26 +117,6 @@ When you run the program, you can choose which teller scheduling algorithm to us
 - **Comparison mode:** Run all algorithms with same parameters for fair comparison
 - **Side-by-side analysis:** Comprehensive comparison table with all metrics
 - **Best performers:** Automatic identification of top-performing algorithms
-
-## How to Run
-
-1. **Compile:**
-   ```sh
-   javac simulator/*.java
-   ```
-
-2. **Run:**
-   ```sh
-   java simulator.TellerFlowOptimizer
-   ```
-
-3. **Follow the prompts:**
-   - Enter simulation parameters (time, transaction time, etc.)
-   - Choose your data source (file or random)
-   - **Select run mode:**
-     - Single algorithm run
-     - Comparison mode (runs all 3 algorithms)
-   - Choose scheduling algorithm (if single run mode)
 
 ## Output Features
 
