@@ -1,34 +1,34 @@
 package simulator;
 
-class Customer
+public class Customer
 {
     private int customerID;
     private int transactionTime;
     private int arrivalTime;
 
-    Customer()
+    public Customer()
     {
         this(1,1,1);
     }
 
-    Customer(int customerid, int transactionduration, int arrivaltime)
+    public Customer(int customerid, int transactionduration, int arrivaltime)
     {
         customerID = customerid;
         transactionTime = transactionduration;
         arrivalTime = arrivaltime;
     }
 
-    int getTransactionTime()
+    public int getTransactionTime()
     {
         return transactionTime;
     }
 
-    int getArrivalTime()
+    public int getArrivalTime()
     {
         return arrivalTime;
     }
 
-    int getCustomerID()
+    public int getCustomerID()
     {
         return customerID;
     }

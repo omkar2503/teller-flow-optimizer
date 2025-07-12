@@ -604,6 +604,218 @@ class TellerFlowOptimizer
         captureAlgorithmResult("Least Work Left");
     }
 
+    // Simulation with log for JavaFX UI
+    private void doSimulationWithLog(StringBuilder log) {
+        servicearea = new ServiceArea(numTellers, customerQLimit, 1);
+        simulationTellers.clear();
+        for (int i = 0; i < numTellers; i++) {
+            simulationTellers.add(new Teller(i + 1));
+        }
+        for (int currentTime = 0; currentTime < simulationTime; currentTime++) {
+            log.append("Time: ").append(currentTime + 1).append(", Queue: ")
+                .append(servicearea.numWaitingCustomers()).append("/" + customerQLimit).append("\n");
+            getCustomerData();
+            if (anyNewArrival) {
+                customerIDCounter++;
+                log.append("  Customer #").append(customerIDCounter)
+                    .append(" arrives with transaction time ").append(transactionTime).append("\n");
+                if (servicearea.isCustomerQTooLong()) {
+                    log.append("  Customer queue full. Customer #").append(customerIDCounter).append(" leaves...\n");
+                    numGoaway++;
+                } else {
+                    log.append("  Customer #").append(customerIDCounter).append(" waits in the customer queue.\n");
+                    servicearea.insertCustomerQ(new Customer(customerIDCounter, transactionTime, currentTime));
+                }
+            } else {
+                log.append("  No new customer!\n");
+            }
+            while (servicearea.numBusyTellers() > 0 && servicearea.getFrontBusyTellerQ().getEndBusyIntervalTime() == currentTime) {
+                Teller teller = servicearea.removeBusyTellerQ();
+                teller.busyToFree();
+                servicearea.insertFreeTellerQ(teller);
+                int tellerIndex = teller.getTellerID() - 1;
+                if (tellerIndex >= 0 && tellerIndex < simulationTellers.size()) {
+                    simulationTellers.get(tellerIndex).busyToFree();
+                }
+                log.append("  Customer #").append(teller.getCustomer().getCustomerID()).append(" is done.\n");
+                log.append("  Teller #").append(teller.getTellerID()).append(" is free.\n");
+            }
+            while (servicearea.numFreeTellers() > 0 && servicearea.numWaitingCustomers() > 0) {
+                Customer customer = servicearea.removeCustomerQ();
+                Teller teller = servicearea.removeFreeTellerQ();
+                teller.freeToBusy(customer, currentTime);
+                servicearea.insertBusyTellerQ(teller);
+                numServed++;
+                int waitTime = currentTime - customer.getArrivalTime();
+                updateCustomerWaitTime(customer.getCustomerID(), waitTime);
+                int tellerIndex = teller.getTellerID() - 1;
+                if (tellerIndex >= 0 && tellerIndex < simulationTellers.size()) {
+                    simulationTellers.get(tellerIndex).freeToBusy(customer, currentTime);
+                }
+                log.append("  Customer #").append(customer.getCustomerID()).append(" gets teller #")
+                    .append(teller.getTellerID()).append(" for ")
+                    .append(customer.getTransactionTime()).append(" unit(s).\n");
+            }
+        }
+    }
+
+    private void doRoundRobinWithLog(StringBuilder log) {
+        servicearea = new ServiceArea(numTellers, customerQLimit, 1);
+        List<Teller> tellers = new ArrayList<>();
+        for (int i = 0; i < numTellers; i++) {
+            tellers.add(new Teller(i + 1));
+        }
+        simulationTellers.clear();
+        simulationTellers.addAll(tellers);
+        Queue<Customer> customerQueue = new ArrayDeque<>();
+        int tellerIndex = 0;
+        for (int currentTime = 0; currentTime < simulationTime; currentTime++) {
+            log.append("Time: ").append(currentTime + 1).append(", Queue: ")
+                .append(customerQueue.size()).append("/" + customerQLimit).append("\n");
+            getCustomerData();
+            if (anyNewArrival) {
+                customerIDCounter++;
+                log.append("  Customer #").append(customerIDCounter)
+                    .append(" arrives with transaction time ").append(transactionTime).append("\n");
+                if (customerQueue.size() == customerQLimit) {
+                    log.append("  Customer queue full. Customer #").append(customerIDCounter).append(" leaves...\n");
+                    numGoaway++;
+                } else {
+                    log.append("  Customer #").append(customerIDCounter).append(" waits in the customer queue.\n");
+                    customerQueue.add(new Customer(customerIDCounter, transactionTime, currentTime));
+                }
+            } else {
+                log.append("  No new customer!\n");
+            }
+            for (Teller t : tellers) {
+                if (t.getCustomer() != null && t.getEndBusyIntervalTime() == currentTime) {
+                    t.busyToFree();
+                    log.append("  Customer #").append(t.getCustomer().getCustomerID()).append(" is done.\n");
+                    log.append("  Teller #").append(t.getTellerID()).append(" is free.\n");
+                }
+            }
+            for (int i = 0; i < tellers.size(); i++) {
+                Teller teller = tellers.get(tellerIndex);
+                if (teller.getCustomer() == null && !customerQueue.isEmpty()) {
+                    Customer customer = customerQueue.poll();
+                    teller.freeToBusy(customer, currentTime);
+                    numServed++;
+                    int waitTime = currentTime - customer.getArrivalTime();
+                    updateCustomerWaitTime(customer.getCustomerID(), waitTime);
+                    log.append("  Customer #").append(customer.getCustomerID()).append(" gets teller #")
+                        .append(teller.getTellerID()).append(" for ")
+                        .append(customer.getTransactionTime()).append(" unit(s).\n");
+                }
+                tellerIndex = (tellerIndex + 1) % tellers.size();
+            }
+        }
+    }
+
+    private void doLeastWorkLeftWithLog(StringBuilder log) {
+        servicearea = new ServiceArea(numTellers, customerQLimit, 1);
+        List<Teller> tellers = new ArrayList<>();
+        for (int i = 0; i < numTellers; i++) {
+            tellers.add(new Teller(i + 1));
+        }
+        simulationTellers.clear();
+        simulationTellers.addAll(tellers);
+        Queue<Customer> customerQueue = new ArrayDeque<>();
+        for (int currentTime = 0; currentTime < simulationTime; currentTime++) {
+            log.append("Time: ").append(currentTime + 1).append(", Queue: ")
+                .append(customerQueue.size()).append("/" + customerQLimit).append("\n");
+            getCustomerData();
+            if (anyNewArrival) {
+                customerIDCounter++;
+                log.append("  Customer #").append(customerIDCounter)
+                    .append(" arrives with transaction time ").append(transactionTime).append("\n");
+                if (customerQueue.size() == customerQLimit) {
+                    log.append("  Customer queue full. Customer #").append(customerIDCounter).append(" leaves...\n");
+                    numGoaway++;
+                } else {
+                    log.append("  Customer #").append(customerIDCounter).append(" waits in the customer queue.\n");
+                    customerQueue.add(new Customer(customerIDCounter, transactionTime, currentTime));
+                }
+            } else {
+                log.append("  No new customer!\n");
+            }
+            for (Teller t : tellers) {
+                if (t.getCustomer() != null && t.getEndBusyIntervalTime() == currentTime) {
+                    t.busyToFree();
+                    log.append("  Customer #").append(t.getCustomer().getCustomerID()).append(" is done.\n");
+                    log.append("  Teller #").append(t.getTellerID()).append(" is free.\n");
+                }
+            }
+            while (!customerQueue.isEmpty()) {
+                int minIndex = 0;
+                int minFinish = Integer.MAX_VALUE;
+                for (int i = 0; i < tellers.size(); i++) {
+                    Teller t = tellers.get(i);
+                    int finish = t.getCustomer() == null ? currentTime : t.getEndBusyIntervalTime();
+                    if (finish < minFinish) {
+                        minFinish = finish;
+                        minIndex = i;
+                    }
+                }
+                Teller chosen = tellers.get(minIndex);
+                if (chosen.getCustomer() == null) {
+                    Customer customer = customerQueue.poll();
+                    chosen.freeToBusy(customer, currentTime);
+                    numServed++;
+                    int waitTime = currentTime - customer.getArrivalTime();
+                    updateCustomerWaitTime(customer.getCustomerID(), waitTime);
+                    log.append("  Customer #").append(customer.getCustomerID()).append(" gets teller #")
+                        .append(chosen.getTellerID()).append(" for ")
+                        .append(customer.getTransactionTime()).append(" unit(s).\n");
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    // Static method for JavaFX UI integration
+    public static SimulationResult runWithParams(int simTime, int maxTrans, int chance, int tellers, int queueLimit, String algorithm) {
+        StringBuilder log = new StringBuilder();
+        List<Double> utilizations = new ArrayList<>();
+        TellerFlowOptimizer sim = new TellerFlowOptimizer();
+        sim.simulationTime = simTime;
+        sim.maxTransactionTime = maxTrans;
+        sim.chancesOfArrival = chance;
+        sim.numTellers = tellers;
+        sim.customerQLimit = queueLimit;
+        sim.dataSource = 0; // Always use random for UI
+        sim.dataRandom = new Random();
+        sim.customerIDCounter = 0;
+        sim.numGoaway = 0;
+        sim.numServed = 0;
+        sim.totalWaitingTime = 0;
+        sim.maxWaitTime = 0;
+        sim.totalCustomerWaitTime = 0;
+        sim.totalTellerBusyTime = 0;
+        sim.totalTellerIdleTime = 0;
+        sim.customerWaitTimes = new ArrayList<>();
+        sim.tellerUtilization = new ArrayList<>();
+        sim.peakQueueLength = 0;
+        sim.totalQueueTime = 0;
+        sim.queueLengths = new ArrayList<>();
+        sim.simulationTellers = new ArrayList<>();
+        // Choose algorithm
+        if (algorithm.contains("Greedy")) {
+            sim.doSimulationWithLog(log);
+        } else if (algorithm.contains("Round Robin")) {
+            sim.doRoundRobinWithLog(log);
+        } else {
+            sim.doLeastWorkLeftWithLog(log);
+        }
+        // Collect utilization
+        for (Teller t : sim.simulationTellers) {
+            double util = (t.getTotalBusyTime() + t.getTotalFreeTime()) > 0 ?
+                100.0 * t.getTotalBusyTime() / (t.getTotalBusyTime() + t.getTotalFreeTime()) : 0.0;
+            utilizations.add(util);
+        }
+        return new SimulationResult(log.toString(), utilizations);
+    }
+
     // *** main method to run simulation ***
 
     public static void main(String[] args)

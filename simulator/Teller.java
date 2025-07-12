@@ -3,7 +3,7 @@ package simulator;
 import java.util.ArrayList;
 import java.util.List;
 
-class Teller
+public class Teller
 {
     // start time and end time of current interval
     private int startTime;
@@ -22,12 +22,12 @@ class Teller
     private List<Integer> idlePeriods;
     private List<Integer> busyPeriods;
 
-    Teller()
+    public Teller()
     {
         this(1);
     }
 
-    Teller(int tellerId)
+    public Teller(int tellerId)
     {
         tellerID = tellerId;
         idlePeriods = new ArrayList<>();
@@ -36,26 +36,32 @@ class Teller
 
     // accessor methods
 
-    int getTellerID()
+    public int getTellerID()
     {
         return tellerID;
     }
 
-    Customer getCustomer()
+    public Customer getCustomer()
     {
         return currentCustomer;
     }
 
-    // need this to setup priority queue
-    int getEndBusyIntervalTime()
+    public int getEndBusyIntervalTime()
     {
         // return end time of busy interval
         return endTime;
     }
 
+    public int getTotalBusyTime() {
+        return totalBusyTime;
+    }
+    public int getTotalFreeTime() {
+        return totalFreeTime;
+    }
+
     // functions for state transition
 
-    void freeToBusy (Customer currentCustomer, int currentTime)
+    public void freeToBusy (Customer currentCustomer, int currentTime)
     {
         // Main goal : switch from free interval to busy interval
         //
@@ -73,7 +79,7 @@ class Teller
         totalCustomers++;
     }
 
-    Customer busyToFree ()
+    public Customer busyToFree ()
     {
         // Main goal : switch from busy interval to free interval
         //
@@ -90,7 +96,7 @@ class Teller
 
     // need this method at the end of simulation to update teller data
     // intervalType: 0 for FREE interval, 1 for BUSY interval
-    void setEndIntervalTime (int endsimulationtime, int intervalType)
+    public void setEndIntervalTime (int endsimulationtime, int intervalType)
     {
         // for end of simulation
         // set endTime,
@@ -108,7 +114,7 @@ class Teller
 
     // functions for printing statistics :
     
-    void printStatistics ()
+    public void printStatistics ()
     {
         // print teller statistics, see project statement
 
