@@ -1,5 +1,8 @@
 package simulator;
 
+import java.util.ArrayList;
+import java.util.List;
+
 class Teller
 {
     // start time and end time of current interval
@@ -15,6 +18,10 @@ class Teller
     private int totalBusyTime;
     private int totalCustomers;
 
+    // Enhanced state tracking
+    private List<Integer> idlePeriods;
+    private List<Integer> busyPeriods;
+
     Teller()
     {
         this(1);
@@ -23,6 +30,8 @@ class Teller
     Teller(int tellerId)
     {
         tellerID = tellerId;
+        idlePeriods = new ArrayList<>();
+        busyPeriods = new ArrayList<>();
     }
 
     // accessor methods
@@ -55,7 +64,9 @@ class Teller
         //         set startTime, endTime, currentCustomer
         //         update totalCustomers
 
-        totalFreeTime += (currentTime - startTime);
+        int idlePeriod = currentTime - startTime;
+        if (idlePeriod > 0) idlePeriods.add(idlePeriod);
+        totalFreeTime += idlePeriod;
         startTime = currentTime;
         endTime = startTime + currentCustomer.getTransactionTime();
         this.currentCustomer = currentCustomer;
@@ -70,7 +81,9 @@ class Teller
         //         set startTime
         //         return currentCustomer
 
-        totalBusyTime += (endTime - startTime);
+        int busyPeriod = endTime - startTime;
+        if (busyPeriod > 0) busyPeriods.add(busyPeriod);
+        totalBusyTime += busyPeriod;
         startTime = endTime;
         return currentCustomer;
     }
@@ -108,7 +121,31 @@ class Teller
             System.out.format("\t\tAverage transaction time : %.2f\n",
                     (totalBusyTime*1.0)/totalCustomers);
         }
+        // Enhanced state tracking
+        if (!idlePeriods.isEmpty()) {
+            System.out.format("\t\tAverage idle period      : %.2f\n", avg(idlePeriods));
+            System.out.println("\t\tMax idle period          : " + max(idlePeriods));
+        }
+        if (!busyPeriods.isEmpty()) {
+            System.out.format("\t\tAverage busy period      : %.2f\n", avg(busyPeriods));
+            System.out.println("\t\tMax busy period          : " + max(busyPeriods));
+        }
+        double utilization = (totalBusyTime + totalFreeTime) > 0 ? (100.0 * totalBusyTime / (totalBusyTime + totalFreeTime)) : 0.0;
+        System.out.format("\t\tUtilization              : %.2f%%\n", utilization);
         System.out.println();
+    }
+
+    private double avg(List<Integer> list) {
+        if (list.isEmpty()) return 0.0;
+        int sum = 0;
+        for (int v : list) sum += v;
+        return (double) sum / list.size();
+    }
+    private int max(List<Integer> list) {
+        if (list.isEmpty()) return 0;
+        int m = list.get(0);
+        for (int v : list) if (v > m) m = v;
+        return m;
     }
 
     @Override

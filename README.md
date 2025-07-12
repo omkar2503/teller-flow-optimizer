@@ -16,20 +16,107 @@ At the end of each time unit, the program prints out a snapshot of the queues,
 customers, and tellers.
 The program ends with printing out statistics of the simulation.
 
-## Scheduling Algorithms (New!)
+## Scheduling Algorithms
 
-When you run the program, you can now choose which teller scheduling algorithm to use:
+When you run the program, you can choose which teller scheduling algorithm to use:
 
 1. **Greedy (Least Finish Time):**
    - Assigns each waiting customer to the next available teller (the one who becomes free the earliest).
    - This is the original/default logic.
+
 2. **Round Robin:**
    - Assigns customers to tellers in a circular order (teller 1, 2, ..., N, then back to 1, etc.).
    - Each teller only takes a new customer if they are free.
+
 3. **Least Work Left:**
    - Assigns each new customer to the teller with the least total finish time so far (the teller who will be free the soonest, considering all current assignments).
 
-You will be prompted to select the algorithm after entering the simulation parameters.
+## Enhanced Features
+
+### 🎯 **Better Teller State Tracking**
+- **Individual teller statistics:** Average/maximum idle periods, average/maximum busy periods
+- **Workload distribution:** Detailed breakdown of each teller's performance
+- **Utilization analysis:** Percentage of time each teller was busy vs. idle
+- **Customer service metrics:** Average transaction time per teller
+
+### 📊 **Real-time Metrics**
+- **Queue trends:** Track queue length at each time step
+- **Status updates:** Real-time summary of busy/free tellers and queue status
+- **Performance monitoring:** Min/avg/max queue length reporting
+- **Toggle option:** Enable/disable real-time status updates
+
+### 🔄 **Algorithm Comparison**
+- **Performance metrics storage:** Captures key metrics for each algorithm run
+- **Comparison mode:** Run all algorithms with same parameters for fair comparison
+- **Side-by-side analysis:** Comprehensive comparison table with all metrics
+- **Best performers:** Automatic identification of top-performing algorithms
+
+## How to Run
+
+1. **Compile:**
+   ```sh
+   javac simulator/*.java
+   ```
+
+2. **Run:**
+   ```sh
+   java simulator.TellerFlowOptimizer
+   ```
+
+3. **Follow the prompts:**
+   - Enter simulation parameters (time, transaction time, etc.)
+   - Choose your data source (file or random)
+   - **Select run mode:**
+     - Single algorithm run
+     - Comparison mode (runs all 3 algorithms)
+   - Choose scheduling algorithm (if single run mode)
+
+## Output Features
+
+### **Enhanced Performance Metrics**
+- Average customer wait time
+- Maximum wait time
+- Peak queue length
+- Average teller utilization
+- Queue efficiency percentage
+- Average service time
+
+### **Real-time Status Updates**
+```
+[Time 5] Queue: 2, Busy Tellers: 3, Free Tellers: 2
+```
+
+### **Algorithm Comparison Table**
+```
+==========================================
+*** ALGORITHM COMPARISON TABLE ***
+==========================================
+Algorithm       Avg Wait    Max Wait    Utilization   Queue Eff.    Peak Queue   Avg Queue
+-------------------------------------------------------------------------------
+Greedy          2.50        8           75.50        95.00         5            1.20
+Round Robin     3.20        10          70.30        92.00         6            1.50
+Least Work Left 2.80        9           78.20        96.00         4            1.10
+-------------------------------------------------------------------------------
+
+*** BEST PERFORMERS ***
+Lowest avg wait time: Greedy
+Highest utilization: Least Work Left
+Best queue efficiency: Least Work Left
+```
+
+### **Detailed Teller Statistics**
+```
+Teller ID                : 1
+Total free time          : 15
+Total busy time          : 85
+Total # of customers     : 8
+Average transaction time : 10.63
+Average idle period      : 3.75
+Max idle period          : 8
+Average busy period      : 10.63
+Max busy period          : 15
+Utilization              : 85.00%
+```
 
 ## Assumptions and Requirements
 

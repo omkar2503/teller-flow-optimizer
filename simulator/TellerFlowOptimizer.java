@@ -13,11 +13,31 @@ class TellerFlowOptimizer
     // statistical data
     private int numGoaway, numServed, totalWaitingTime;
 
+    // enhanced statistics for detailed analysis
+    private int maxWaitTime;
+    private int totalCustomerWaitTime;
+    private int totalTellerBusyTime;
+    private int totalTellerIdleTime;
+    private List<Integer> customerWaitTimes;
+    private List<Integer> tellerUtilization;
+    private int peakQueueLength;
+    private int totalQueueTime;
+    // Real-time metrics
+    private List<Integer> queueLengths;
+    private boolean printStepSummary = true; // Set to false to disable per-step status
+    
+    // Algorithm comparison
+    private List<AlgorithmResult> algorithmResults;
+    private boolean comparisonMode = false;
+
     // internal data
     private int customerIDCounter;
     private ServiceArea servicearea; // service area object
     private Scanner dataFile;        // get customer data from file
     private Random dataRandom;       // get customer data using random function
+    
+    // Store actual teller objects for accurate final statistics
+    private List<Teller> simulationTellers;
 
     // most recent customer arrival info, see getCustomerData()
     private boolean anyNewArrival;
@@ -30,6 +50,25 @@ class TellerFlowOptimizer
         numServed = 0;
         totalWaitingTime = 0;
         customerIDCounter = 0;
+        
+        // Initialize enhanced statistics
+        maxWaitTime = 0;
+        totalCustomerWaitTime = 0;
+        totalTellerBusyTime = 0;
+        totalTellerIdleTime = 0;
+        customerWaitTimes = new ArrayList<>();
+        tellerUtilization = new ArrayList<>();
+        peakQueueLength = 0;
+        totalQueueTime = 0;
+        
+        // Initialize teller storage
+        simulationTellers = new ArrayList<>();
+        
+        // Real-time metrics
+        queueLengths = new ArrayList<>();
+        
+        // Algorithm comparison
+        algorithmResults = new ArrayList<>();
     }
 
     private void setupParameters()
@@ -110,16 +149,33 @@ class TellerFlowOptimizer
 
         // Initialize ServiceArea
         servicearea = new ServiceArea(numTellers, customerQLimit, 1);
+        
+        // Store teller objects for accurate final statistics
+        simulationTellers.clear();
+        for (int i = 0; i < numTellers; i++) {
+            simulationTellers.add(new Teller(i + 1));
+        }
 
         // Time driver simulation loop
         for (int currentTime = 0; currentTime < simulationTime; currentTime++) {
 
             System.out.println("---------------------------------------------------------------");
             System.out.println("Time  : " + (currentTime+1));
-            System.out.println("Queue : " + servicearea.numWaitingCustomers()
+            int currentQueueLen = servicearea.numWaitingCustomers();
+            queueLengths.add(currentQueueLen);
+            if (printStepSummary) {
+                int busyTellers = servicearea.numBusyTellers();
+                int freeTellers = servicearea.numFreeTellers();
+                System.out.printf("[Time %d] Queue: %d, Busy Tellers: %d, Free Tellers: %d\n", currentTime+1, currentQueueLen, busyTellers, freeTellers);
+            }
+            System.out.println("Queue : " + currentQueueLen
                     + "/" + customerQLimit);
 
             totalWaitingTime = (servicearea.numWaitingCustomers() > 0) ? totalWaitingTime+1 : 0;
+            
+            // Update enhanced statistics
+            updateQueueStatistics(servicearea.numWaitingCustomers(), currentTime);
+            updateTellerUtilization(servicearea.numBusyTellers(), numTellers, currentTime);
 
             // Step 1: any new customer enters the bank?
             getCustomerData();
@@ -149,6 +205,12 @@ class TellerFlowOptimizer
                 Teller teller = servicearea.removeBusyTellerQ();
                 teller.busyToFree();
                 servicearea.insertFreeTellerQ(teller);
+                
+                // Update corresponding teller in our stored list
+                int tellerIndex = teller.getTellerID() - 1;
+                if (tellerIndex >= 0 && tellerIndex < simulationTellers.size()) {
+                    simulationTellers.get(tellerIndex).busyToFree();
+                }
 
                 System.out.println("\tCustomer #" + teller.getCustomer().getCustomerID() + " is done.");
                 System.out.println("\tTeller #" + teller.getTellerID() + " is free.");
@@ -161,6 +223,16 @@ class TellerFlowOptimizer
                 teller.freeToBusy(customer, currentTime);
                 servicearea.insertBusyTellerQ(teller);
                 numServed++;
+                
+                // Track customer wait time
+                int waitTime = currentTime - customer.getArrivalTime();
+                updateCustomerWaitTime(customer.getCustomerID(), waitTime);
+                
+                // Update corresponding teller in our stored list
+                int tellerIndex = teller.getTellerID() - 1;
+                if (tellerIndex >= 0 && tellerIndex < simulationTellers.size()) {
+                    simulationTellers.get(tellerIndex).freeToBusy(customer, currentTime);
+                }
 
                 System.out.println("\tCustomer #" + customer.getCustomerID() + " gets teller #"
                         + teller.getTellerID() + " for " + customer.getTransactionTime() + " unit(s).");
@@ -179,6 +251,31 @@ class TellerFlowOptimizer
         System.out.println("\t\t# customers gone away     : " + numGoaway);
         System.out.println("\t\t# customers served        : " + numServed);
 
+        // Enhanced statistics
+        System.out.println("\n\t*** Enhanced Performance Metrics ***\n");
+        
+        // Wait time statistics
+        double avgWaitTime = customerWaitTimes.isEmpty() ? 0.0 : 
+            (double)totalCustomerWaitTime / customerWaitTimes.size();
+        System.out.printf("\t\tAverage customer wait time : %.2f units\n", avgWaitTime);
+        System.out.println("\t\tMaximum wait time          : " + maxWaitTime + " units");
+        System.out.println("\t\tPeak queue length          : " + peakQueueLength + " customers");
+        
+        // Teller utilization
+        double avgTellerUtilization = tellerUtilization.isEmpty() ? 0.0 :
+            (double)totalTellerBusyTime / (totalTellerBusyTime + totalTellerIdleTime) * 100;
+        System.out.printf("\t\tAverage teller utilization : %.2f%%\n", avgTellerUtilization);
+        
+        // Queue efficiency
+        double queueEfficiency = customerIDCounter == 0 ? 0.0 :
+            (double)numServed / customerIDCounter * 100;
+        System.out.printf("\t\tQueue efficiency           : %.2f%%\n", queueEfficiency);
+        
+        // Service quality metrics
+        if (numServed > 0) {
+            double avgServiceTime = (double)totalTellerBusyTime / numServed;
+            System.out.printf("\t\tAverage service time       : %.2f units\n", avgServiceTime);
+        }
 
         System.out.println("\n\n\t*** Current Tellers info. ***\n\n");
         servicearea.printStatistics();
@@ -188,33 +285,152 @@ class TellerFlowOptimizer
                 ? 0.0 : (double)totalWaitingTime / servicearea.numWaitingCustomers();
         System.out.printf("\t\tAverage waiting time : %.2f\n", averageWaitingTime);
 
-        System.out.println("\n\n\t*** Busy Tellers info. ***\n\n");
-        if (!servicearea.emptyBusyTellerQ()) {
-            while (servicearea.numBusyTellers() > 0) {
-                Teller teller = servicearea.removeBusyTellerQ();
-                teller.setEndIntervalTime(simulationTime, 1);
+        System.out.println("\n\n\t*** Final Teller Statistics ***\n\n");
+        if (!simulationTellers.isEmpty()) {
+            for (Teller teller : simulationTellers) {
+                teller.setEndIntervalTime(simulationTime, teller.getCustomer() != null ? 1 : 0);
                 teller.printStatistics();
             }
         } else {
-            System.out.println("\t\tNo busy tellers.\n");
-        }
-
-        System.out.println("\n\t*** Free Tellers Info. ***\n\n");
-        if (!servicearea.emptyFreeTellerQ()) {
-            while (servicearea.numFreeTellers() > 0) {
-                Teller teller = servicearea.removeFreeTellerQ();
-                teller.setEndIntervalTime(simulationTime, 0);
-                teller.printStatistics();
-            }
-        } else {
-            System.out.println("\t\tNo free tellers.\n");
+            System.out.println("\t\tNo teller data available.\n");
         }
         System.out.println();
+
+        // Real-time queue trends
+        if (!queueLengths.isEmpty()) {
+            int minQ = queueLengths.stream().min(Integer::compareTo).orElse(0);
+            int maxQ = queueLengths.stream().max(Integer::compareTo).orElse(0);
+            double avgQ = queueLengths.stream().mapToInt(i->i).average().orElse(0.0);
+            System.out.printf("\n\tQueue length (min/avg/max): %d / %.2f / %d\n", minQ, avgQ, maxQ);
+        }
+    }
+
+    // Enhanced statistics tracking methods
+    private void updateQueueStatistics(int currentQueueLength, int currentTime) {
+        // Track peak queue length
+        if (currentQueueLength > peakQueueLength) {
+            peakQueueLength = currentQueueLength;
+        }
+        
+        // Track total queue time
+        if (currentQueueLength > 0) {
+            totalQueueTime++;
+        }
+    }
+
+    private void updateCustomerWaitTime(int customerID, int waitTime) {
+        customerWaitTimes.add(waitTime);
+        totalCustomerWaitTime += waitTime;
+        if (waitTime > maxWaitTime) {
+            maxWaitTime = waitTime;
+        }
+    }
+
+    private void updateTellerUtilization(int busyTellers, int totalTellers, int currentTime) {
+        int utilization = totalTellers == 0 ? 0 : (busyTellers * 100) / totalTellers;
+        tellerUtilization.add(utilization);
+        
+        // Track total busy and idle time
+        totalTellerBusyTime += busyTellers;
+        totalTellerIdleTime += (totalTellers - busyTellers);
+    }
+    
+    // Algorithm comparison methods
+    private void captureAlgorithmResult(String algorithmName) {
+        AlgorithmResult result = new AlgorithmResult(algorithmName);
+        
+        // Calculate metrics
+        double avgWaitTime = customerWaitTimes.isEmpty() ? 0.0 : 
+            (double)totalCustomerWaitTime / customerWaitTimes.size();
+        double avgTellerUtilization = tellerUtilization.isEmpty() ? 0.0 :
+            (double)totalTellerBusyTime / (totalTellerBusyTime + totalTellerIdleTime) * 100;
+        double queueEfficiency = customerIDCounter == 0 ? 0.0 :
+            (double)numServed / customerIDCounter * 100;
+        double avgServiceTime = numServed > 0 ? (double)totalTellerBusyTime / numServed : 0.0;
+        double avgQueueLength = queueLengths.isEmpty() ? 0.0 : 
+            queueLengths.stream().mapToInt(i->i).average().orElse(0.0);
+        
+        // Set results
+        result.setAvgWaitTime(avgWaitTime);
+        result.setMaxWaitTime(maxWaitTime);
+        result.setAvgTellerUtilization(avgTellerUtilization);
+        result.setQueueEfficiency(queueEfficiency);
+        result.setTotalCustomers(customerIDCounter);
+        result.setCustomersServed(numServed);
+        result.setCustomersGoneAway(numGoaway);
+        result.setAvgServiceTime(avgServiceTime);
+        result.setPeakQueueLength(peakQueueLength);
+        result.setAvgQueueLength(avgQueueLength);
+        
+        algorithmResults.add(result);
+    }
+    
+    private void printComparisonTable() {
+        if (algorithmResults.size() < 2) return;
+        
+        System.out.println("\n" + "=".repeat(80));
+        System.out.println("\t\t*** ALGORITHM COMPARISON TABLE ***");
+        System.out.println("=".repeat(80));
+        
+        // Print header
+        System.out.printf("%-15s %-12s %-12s %-15s %-15s %-12s %-12s\n", 
+            "Algorithm", "Avg Wait", "Max Wait", "Utilization", "Queue Eff.", "Peak Queue", "Avg Queue");
+        System.out.println("-".repeat(80));
+        
+        // Print each algorithm's results
+        for (AlgorithmResult result : algorithmResults) {
+            System.out.printf("%-15s %-12.2f %-12d %-15.2f %-15.2f %-12d %-12.2f\n",
+                result.getAlgorithmName(),
+                result.getAvgWaitTime(),
+                result.getMaxWaitTime(),
+                result.getAvgTellerUtilization(),
+                result.getQueueEfficiency(),
+                result.getPeakQueueLength(),
+                result.getAvgQueueLength());
+        }
+        
+        System.out.println("-".repeat(80));
+        
+        // Find best performers
+        AlgorithmResult bestWait = algorithmResults.stream()
+            .min((a, b) -> Double.compare(a.getAvgWaitTime(), b.getAvgWaitTime()))
+            .orElse(null);
+        AlgorithmResult bestUtilization = algorithmResults.stream()
+            .max((a, b) -> Double.compare(a.getAvgTellerUtilization(), b.getAvgTellerUtilization()))
+            .orElse(null);
+        AlgorithmResult bestEfficiency = algorithmResults.stream()
+            .max((a, b) -> Double.compare(a.getQueueEfficiency(), b.getQueueEfficiency()))
+            .orElse(null);
+            
+        System.out.println("\n*** BEST PERFORMERS ***");
+        if (bestWait != null) System.out.println("Lowest avg wait time: " + bestWait.getAlgorithmName());
+        if (bestUtilization != null) System.out.println("Highest utilization: " + bestUtilization.getAlgorithmName());
+        if (bestEfficiency != null) System.out.println("Best queue efficiency: " + bestEfficiency.getAlgorithmName());
+        System.out.println("=".repeat(80));
+    }
+    
+    private void resetForNextRun() {
+        // Reset counters for next algorithm run
+        numGoaway = 0;
+        numServed = 0;
+        totalWaitingTime = 0;
+        customerIDCounter = 0;
+        maxWaitTime = 0;
+        totalCustomerWaitTime = 0;
+        totalTellerBusyTime = 0;
+        totalTellerIdleTime = 0;
+        customerWaitTimes.clear();
+        tellerUtilization.clear();
+        peakQueueLength = 0;
+        totalQueueTime = 0;
+        queueLengths.clear();
+        simulationTellers.clear();
     }
 
     private void runGreedy() {
         // Reuse the current doSimulation() logic
         doSimulation();
+        captureAlgorithmResult("Greedy");
     }
 
     private void runRoundRobin() {
@@ -226,12 +442,29 @@ class TellerFlowOptimizer
         for (int i = 0; i < numTellers; i++) {
             tellers.add(new Teller(i + 1));
         }
+        
+        // Store teller objects for accurate final statistics
+        simulationTellers.clear();
+        simulationTellers.addAll(tellers);
+
         Queue<Customer> customerQueue = new ArrayDeque<>();
         for (int currentTime = 0; currentTime < simulationTime; currentTime++) {
             System.out.println("---------------------------------------------------------------");
             System.out.println("Time  : " + (currentTime + 1));
-            System.out.println("Queue : " + customerQueue.size() + "/" + customerQLimit);
+            int currentQueueLen = customerQueue.size();
+            queueLengths.add(currentQueueLen);
+            if (printStepSummary) {
+                int busyTellers = (int) tellers.stream().filter(t -> t.getCustomer() != null).count();
+                int freeTellers = tellers.size() - busyTellers;
+                System.out.printf("[Time %d] Queue: %d, Busy Tellers: %d, Free Tellers: %d\n", currentTime+1, currentQueueLen, busyTellers, freeTellers);
+            }
+            System.out.println("Queue : " + currentQueueLen + "/" + customerQLimit);
             totalWaitingTime = (customerQueue.size() > 0) ? totalWaitingTime + 1 : 0;
+            
+            // Update enhanced statistics
+            updateQueueStatistics(customerQueue.size(), currentTime);
+            updateTellerUtilization(tellers.stream().mapToInt(t -> t.getCustomer() != null ? 1 : 0).sum(), tellers.size(), currentTime);
+            
             getCustomerData();
             if (anyNewArrival) {
                 customerIDCounter++;
@@ -262,6 +495,11 @@ class TellerFlowOptimizer
                     Customer customer = customerQueue.poll();
                     teller.freeToBusy(customer, currentTime);
                     numServed++;
+                    
+                    // Track customer wait time
+                    int waitTime = currentTime - customer.getArrivalTime();
+                    updateCustomerWaitTime(customer.getCustomerID(), waitTime);
+                    
                     System.out.println("\tCustomer #" + customer.getCustomerID() + " gets teller #" + teller.getTellerID() + " for " + customer.getTransactionTime() + " unit(s).");
                 }
                 tellerIndex = (tellerIndex + 1) % tellers.size();
@@ -272,6 +510,7 @@ class TellerFlowOptimizer
             teller.setEndIntervalTime(simulationTime, teller.getCustomer() != null ? 1 : 0);
             teller.printStatistics();
         }
+        captureAlgorithmResult("Round Robin");
     }
 
     private void runLeastWorkLeft() {
@@ -282,13 +521,30 @@ class TellerFlowOptimizer
         for (int i = 0; i < numTellers; i++) {
             tellers.add(new Teller(i + 1));
         }
+        
+        // Store teller objects for accurate final statistics
+        simulationTellers.clear();
+        simulationTellers.addAll(tellers);
+
         Queue<Customer> customerQueue = new ArrayDeque<>();
         int[] tellerFinishTimes = new int[numTellers];
         for (int currentTime = 0; currentTime < simulationTime; currentTime++) {
             System.out.println("---------------------------------------------------------------");
             System.out.println("Time  : " + (currentTime + 1));
-            System.out.println("Queue : " + customerQueue.size() + "/" + customerQLimit);
+            int currentQueueLen = customerQueue.size();
+            queueLengths.add(currentQueueLen);
+            if (printStepSummary) {
+                int busyTellers = (int) tellers.stream().filter(t -> t.getCustomer() != null).count();
+                int freeTellers = tellers.size() - busyTellers;
+                System.out.printf("[Time %d] Queue: %d, Busy Tellers: %d, Free Tellers: %d\n", currentTime+1, currentQueueLen, busyTellers, freeTellers);
+            }
+            System.out.println("Queue : " + currentQueueLen + "/" + customerQLimit);
             totalWaitingTime = (customerQueue.size() > 0) ? totalWaitingTime + 1 : 0;
+            
+            // Update enhanced statistics
+            updateQueueStatistics(customerQueue.size(), currentTime);
+            updateTellerUtilization(tellers.stream().mapToInt(t -> t.getCustomer() != null ? 1 : 0).sum(), tellers.size(), currentTime);
+            
             getCustomerData();
             if (anyNewArrival) {
                 customerIDCounter++;
@@ -329,6 +585,11 @@ class TellerFlowOptimizer
                     Customer customer = customerQueue.poll();
                     chosen.freeToBusy(customer, currentTime);
                     numServed++;
+                    
+                    // Track customer wait time
+                    int waitTime = currentTime - customer.getArrivalTime();
+                    updateCustomerWaitTime(customer.getCustomerID(), waitTime);
+                    
                     System.out.println("\tCustomer #" + customer.getCustomerID() + " gets teller #" + chosen.getTellerID() + " for " + customer.getTransactionTime() + " unit(s).");
                 } else {
                     break;
@@ -340,6 +601,7 @@ class TellerFlowOptimizer
             teller.setEndIntervalTime(simulationTime, teller.getCustomer() != null ? 1 : 0);
             teller.printStatistics();
         }
+        captureAlgorithmResult("Least Work Left");
     }
 
     // *** main method to run simulation ***
@@ -348,28 +610,77 @@ class TellerFlowOptimizer
     {
         TellerFlowOptimizer runTellerFlowOptimizer = new TellerFlowOptimizer();
         runTellerFlowOptimizer.setupParameters();
+        
         Scanner menuScanner = new Scanner(System.in);
-        int choice = 0;
-        do {
-            System.out.println("\nChoose scheduling algorithm:");
-            System.out.println("1: Greedy (Least Finish Time)");
-            System.out.println("2: Round Robin");
-            System.out.println("3: Least Work Left");
-            System.out.print("Enter choice (1-3): ");
-            choice = menuScanner.nextInt();
-        } while (choice < 1 || choice > 3);
-        switch (choice) {
-            case 1:
-                runTellerFlowOptimizer.runGreedy();
-                break;
-            case 2:
-                runTellerFlowOptimizer.runRoundRobin();
-                break;
-            case 3:
-                runTellerFlowOptimizer.runLeastWorkLeft();
-                break;
+        
+        // Ask if user wants to run comparison mode
+        System.out.println("\nRun comparison mode? (Compare multiple algorithms)");
+        System.out.println("1: Single algorithm run");
+        System.out.println("2: Comparison mode (run all algorithms)");
+        System.out.print("Enter choice (1-2): ");
+        int comparisonChoice = menuScanner.nextInt();
+        
+        if (comparisonChoice == 2) {
+            // Run all algorithms for comparison
+            runTellerFlowOptimizer.comparisonMode = true;
+            System.out.println("\nRunning all algorithms for comparison...");
+            
+            // Run Greedy
+            System.out.println("\n" + "=".repeat(50));
+            System.out.println("RUNNING GREEDY ALGORITHM");
+            System.out.println("=".repeat(50));
+            runTellerFlowOptimizer.runGreedy();
+            runTellerFlowOptimizer.printStatistics();
+            
+            // Reset counters for next run
+            runTellerFlowOptimizer.resetForNextRun();
+            
+            // Run Round Robin
+            System.out.println("\n" + "=".repeat(50));
+            System.out.println("RUNNING ROUND ROBIN ALGORITHM");
+            System.out.println("=".repeat(50));
+            runTellerFlowOptimizer.runRoundRobin();
+            runTellerFlowOptimizer.printStatistics();
+            
+            // Reset counters for next run
+            runTellerFlowOptimizer.resetForNextRun();
+            
+            // Run Least Work Left
+            System.out.println("\n" + "=".repeat(50));
+            System.out.println("RUNNING LEAST WORK LEFT ALGORITHM");
+            System.out.println("=".repeat(50));
+            runTellerFlowOptimizer.runLeastWorkLeft();
+            runTellerFlowOptimizer.printStatistics();
+            
+            // Print comparison table
+            runTellerFlowOptimizer.printComparisonTable();
+            
+        } else {
+            // Single algorithm run
+            int choice = 0;
+            do {
+                System.out.println("\nChoose scheduling algorithm:");
+                System.out.println("1: Greedy (Least Finish Time)");
+                System.out.println("2: Round Robin");
+                System.out.println("3: Least Work Left");
+                System.out.print("Enter choice (1-3): ");
+                choice = menuScanner.nextInt();
+            } while (choice < 1 || choice > 3);
+            
+            switch (choice) {
+                case 1:
+                    runTellerFlowOptimizer.runGreedy();
+                    break;
+                case 2:
+                    runTellerFlowOptimizer.runRoundRobin();
+                    break;
+                case 3:
+                    runTellerFlowOptimizer.runLeastWorkLeft();
+                    break;
+            }
+            runTellerFlowOptimizer.printStatistics();
         }
-        runTellerFlowOptimizer.printStatistics();
+        
         menuScanner.close();
     }
 
